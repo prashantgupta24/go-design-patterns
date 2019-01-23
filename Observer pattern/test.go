@@ -2,11 +2,11 @@ package main
 
 import "fmt"
 
-type Subject interface {
-	Subscribe(Observer)
-	Unsubscribe(Observer)
-	OnChange()
-}
+// type Subject interface {
+// 	Subscribe(Observer)
+// 	Unsubscribe(Observer)
+// 	OnChange()
+// }
 
 type Observer interface {
 	Update(int)
