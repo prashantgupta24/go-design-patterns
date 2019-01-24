@@ -41,7 +41,7 @@ func mochaDecorator(b beverage) beverage {
 
 func display(b beverage) {
 	fmt.Printf("Type : %v and cost : %v\n", b.GetDescription(), b.GetCost())
-	fmt.Println("result ", float32(1.1)+float32(1.2))
+	//fmt.Println("result ", float32(1.1)+float32(1.2))
 
 }
 func main() {
