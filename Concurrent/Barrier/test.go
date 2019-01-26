@@ -6,20 +6,18 @@ import (
 	"time"
 )
 
-type str struct {
-	val1 int
-	val2 int
-}
-
 type returnVal struct {
 	msg string
 	err error
 }
 
+//all functions need to be of this type
+type functionType func(int) (string, error)
+
 type barrier struct {
 	wg        *sync.WaitGroup
 	results   chan *returnVal
-	functions []func()
+	functions []functionType
 }
 
 func (b *barrier) init() {
@@ -28,22 +26,39 @@ func (b *barrier) init() {
 	b.results = make(chan *returnVal)
 }
 
-func (b *barrier) add(fn func()) {
+func (b *barrier) add(fn functionType) *barrier {
 	b.functions = append(b.functions, fn)
+	return b
 }
 
-func (b *barrier) execute() (string, error) {
+func (b *barrier) executeAndReturn(val int) []*returnVal {
+	b.executeDefault(&val)
+	return b.wait()
+}
 
+func (b *barrier) executeDefault(val *int) {
 	for _, fn := range b.functions {
 		b.wg.Add(1)
-		go fn()
+		go func(fn functionType, b *barrier, val *int) {
+			defer b.wg.Done()
+			resp, err := fn(*val)
+			if err != nil {
+				b.results <- &returnVal{
+					msg: "",
+					err: err,
+				}
+			} else {
+				b.results <- &returnVal{
+					msg: resp,
+					err: nil,
+				}
+			}
+		}(fn, b, val)
 	}
-	// wg.Add(1)
-	// go job1(val1, &wg, results, st)
+}
 
-	// wg.Add(1)
-	// go job2(val2, &wg, results, st)
-
+func (b *barrier) execute(val int) (string, error) {
+	b.executeDefault(&val)
 	returnValues := b.wait()
 
 	for _, returnValue := range returnValues {
@@ -53,20 +68,6 @@ func (b *barrier) execute() (string, error) {
 	}
 	return fmt.Sprintf("Values are correct!"), nil
 }
-
-// func (b *barrier) wait() (string, error) {
-// 	go func(wg *sync.WaitGroup, results chan *returnVal) {
-// 		wg.Wait()
-// 		close(results)
-// 	}(b.wg, b.results)
-
-// 	for result := range b.results {
-// 		if result.err != nil {
-// 			return "", result.err
-// 		}
-// 	}
-// 	return fmt.Sprintf("Correct!"), nil
-// }
 
 func (b *barrier) wait() []*returnVal {
 	go func(wg *sync.WaitGroup, results chan *returnVal) {
@@ -80,108 +81,51 @@ func (b *barrier) wait() []*returnVal {
 	}
 	return returnValues
 }
-func job1(barrier *barrier, val int, st *str) {
-	defer barrier.wg.Done()
 
+func job1(val int) (string, error) {
+	fmt.Println("executing job1")
 	time.Sleep(time.Second * 3)
-	if val > 1 {
-		st.val1 = val
-		barrier.results <- &returnVal{
-			msg: "success",
-			err: nil,
-		}
-	} else {
-		err := fmt.Errorf("too much for val in func1 : %v", val)
-		barrier.results <- &returnVal{
-			msg: "",
-			err: err,
-		}
+	if val > 10 {
+		return "success", nil
 	}
+	err := fmt.Errorf("too less for val in func1 : %v. It needs greater than 10 ", val)
+	return "", err
 }
 
-func job2(barrier *barrier, val int, st *str) {
-	defer barrier.wg.Done()
-
+func job2(val int) (string, error) {
+	fmt.Println("executing job2")
 	time.Sleep(time.Second * 2)
-	if val < 0 {
-		st.val2 = val
-		barrier.results <- &returnVal{
-			msg: "success",
-			err: nil,
-		}
-	} else {
-		err := fmt.Errorf("too less for val in func2: %v", val)
-		barrier.results <- &returnVal{
-			msg: "",
-			err: err,
-		}
+	if val%2 == 0 {
+		return "success", nil
 	}
+	err := fmt.Errorf("Val not divisible by 2 in func2 : %v", val)
+	return "", err
 }
 
-func job3() (string, error) {
+func job3(val int) (string, error) {
+	fmt.Println("executing job3")
 	time.Sleep(time.Second * 2)
 	return "func3 always passes!", nil
 }
 
-func createJobs(val1, val2 int) (string, error) {
-	st := &str{}
+func createJobs(val int) (string, error) {
 
 	barrier := &barrier{}
 	barrier.init()
 
-	barrier.wg.Add(1)
-	go job1(barrier, val1, st)
+	barrier.add(job1).add(job2).add(job3)
 
-	barrier.wg.Add(1)
-	go job2(barrier, val2, st)
+	//option1, only know if error occured in any of the jobs
+	//return barrier.execute(val)
 
-	barrier.wg.Add(1)
-	go func() {
-		defer barrier.wg.Done()
-		str, err := job3()
-		if err != nil {
-			err := fmt.Errorf("incorrect")
-			barrier.results <- &returnVal{
-				msg: "",
-				err: err,
-			}
-		} else {
-			barrier.results <- &returnVal{
-				msg: str,
-				err: nil,
-			}
-		}
-
-	}()
-
-	returnValues := barrier.wait()
-
+	//option2, more control on return values
+	returnValues := barrier.executeAndReturn(val)
 	for _, returnValue := range returnValues {
 		if returnValue.err != nil {
 			return "", returnValue.err
 		}
 	}
-	return fmt.Sprintf("Values are correct! Struct is: %v", st), nil
-	// var wg sync.WaitGroup
-	// results := make(chan *returnVal, 2)
-
-	// wg.Add(1)
-	// go job1(val1, &wg, results, st)
-
-	// wg.Add(1)
-	// go job2(val2, &wg, results, st)
-
-	// go func(wg *sync.WaitGroup, results chan *returnVal) {
-	// 	wg.Wait()
-	// 	close(results)
-	// }(&wg, results)
-
-	// for result := range results {
-	// 	if result.err != nil {
-	// 		return "", result.err
-	// 	}
-	// }
-	// return fmt.Sprintf("Values are correct! Struct is: %v", st), nil
+	return fmt.Sprintf("Values are correct!"), nil
 }
 
 func display(s string, err error) {
@@ -193,10 +137,6 @@ func display(s string, err error) {
 }
 
 func main() {
-
-	display(createJobs(4, 2))
-	display(createJobs(-4, -2))
-	display(createJobs(-4, 2))
-	display(createJobs(4, -2))
-
+	display(createJobs(4))
+	display(createJobs(12))
 }
