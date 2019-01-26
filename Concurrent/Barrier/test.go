@@ -44,17 +44,14 @@ func (b *barrier) execute() (string, error) {
 	// wg.Add(1)
 	// go job2(val2, &wg, results, st)
 
-	go func(wg *sync.WaitGroup, results chan *returnVal) {
-		wg.Wait()
-		close(results)
-	}(b.wg, b.results)
+	returnValues := b.wait()
 
-	for result := range b.results {
-		if result.err != nil {
-			return "", result.err
+	for _, returnValue := range returnValues {
+		if returnValue.err != nil {
+			return "", returnValue.err
 		}
 	}
-	return fmt.Sprintf("Values are correct! Struct is:"), nil
+	return fmt.Sprintf("Values are correct!"), nil
 }
 
 // func (b *barrier) wait() (string, error) {
@@ -121,7 +118,12 @@ func job2(barrier *barrier, val int, st *str) {
 	}
 }
 
-func createJob(val1, val2 int) (string, error) {
+func job3() (string, error) {
+	time.Sleep(time.Second * 2)
+	return "func3 always passes!", nil
+}
+
+func createJobs(val1, val2 int) (string, error) {
 	st := &str{}
 
 	barrier := &barrier{}
@@ -132,6 +134,25 @@ func createJob(val1, val2 int) (string, error) {
 
 	barrier.wg.Add(1)
 	go job2(barrier, val2, st)
+
+	barrier.wg.Add(1)
+	go func() {
+		defer barrier.wg.Done()
+		str, err := job3()
+		if err != nil {
+			err := fmt.Errorf("incorrect")
+			barrier.results <- &returnVal{
+				msg: "",
+				err: err,
+			}
+		} else {
+			barrier.results <- &returnVal{
+				msg: str,
+				err: nil,
+			}
+		}
+
+	}()
 
 	returnValues := barrier.wait()
 
@@ -173,9 +194,9 @@ func display(s string, err error) {
 
 func main() {
 
-	display(createJob(4, 2))
-	display(createJob(-4, -2))
-	display(createJob(-4, 2))
-	display(createJob(4, -2))
+	display(createJobs(4, 2))
+	display(createJobs(-4, -2))
+	display(createJobs(-4, 2))
+	display(createJobs(4, -2))
 
 }
