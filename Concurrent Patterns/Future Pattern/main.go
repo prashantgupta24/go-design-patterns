@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+//all functions need to be of this type
+type functionType func(int) (string, error)
+
 type successFunction func(string)
 type errorFunction func(error)
 
@@ -15,7 +18,7 @@ type future struct {
 	wg          *sync.WaitGroup
 }
 
-func (f *future) execute(fn func(val int) (string, error), val int) {
+func (f *future) execute(fn functionType, val int) {
 	f.init()
 	f.wg.Add(1)
 	go func(f *future) {
@@ -28,20 +31,6 @@ func (f *future) execute(fn func(val int) (string, error), val int) {
 		}
 	}(f)
 }
-
-// func (f *future) execute(fn func() (string, error), val int) {
-// 	f.init()
-// 	f.wg.Add(1)
-// 	go func(f *future) {
-// 		if str, err := fn(val); err != nil {
-// 			f.failFunc(err)
-// 			f.wg.Done()
-// 		} else {
-// 			f.successFunc(str)
-// 			f.wg.Done()
-// 		}
-// 	}(f)
-// }
 
 func (f *future) init() {
 	if f.wg == nil {
