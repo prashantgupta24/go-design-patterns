@@ -5,6 +5,8 @@ import (
 	"sync"
 )
 
+var singletonInstance *singleton
+
 type singleton struct {
 	val   int
 	mutex sync.RWMutex
@@ -22,33 +24,17 @@ func (s *singleton) getVal() int {
 	return s.val
 }
 
-var instance singleton
+func (s *singleton) addOne() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.val = s.val + 1
+	//fmt.Printf("Got : %v. Now %v : \n", or, s.getVal())
+}
 
 func getInstance() *singleton {
-	return &instance
+	return singletonInstance
 }
 
 func main() {
-
-	var wg sync.WaitGroup
-
-	wg.Add(2)
-
-	go func(wg *sync.WaitGroup) {
-		fmt.Println("func1")
-		defer wg.Done()
-		s1 := getInstance()
-		s1.setVal(s1.getVal() + 3)
-	}(&wg)
-
-	go func(wg *sync.WaitGroup) {
-		fmt.Println("func2")
-		defer wg.Done()
-		s2 := getInstance()
-		s2.setVal(s2.getVal() + 2)
-	}(&wg)
-
-	wg.Wait()
-	s3 := getInstance()
-	fmt.Println(s3.getVal())
+	fmt.Println("Welcome to singleton pattern")
 }
