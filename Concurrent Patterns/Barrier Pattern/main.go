@@ -3,9 +3,38 @@ package main
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
+/*
+
+Barrier pattern
+
+Its purpose is simple--put up a barrier so that nobody passes
+until we have all the results we need, something quite common in concurrent applications.
+
+Imagine the situation where we have a microservices application
+where one service needs to compose its response by merging the responses
+of other microservices. This is where the Barrier pattern can help us.
+
+Our Barrier pattern could be a service that will block its response
+until it has been composed with the results returned by one or more
+different Goroutines (or services).
+
+Usage:
+
+barrier := &barrier{}
+
+//add all jobs to barrier
+barrier.add(job1).add(job2).add(job3Wrapper)
+
+resp, err := barrier.execute()
+//handle the error as you see fit
+
+*/
+
+//CUSTOM ERROR SECTION
+
+//custom error can be returned from the
 type customError struct {
 	err      string
 	critical bool
@@ -22,6 +51,7 @@ func customErrorNew(text string, critical bool) error {
 	}
 }
 
+//each result looks like this
 type result struct {
 	msg string
 	err error
@@ -30,28 +60,33 @@ type result struct {
 //all functions need to be of this type
 type functionType func(int) (string, error)
 
+//main struct
 type barrier struct {
 	wg        *sync.WaitGroup
 	results   chan *result
 	functions []functionType
 }
 
+//initializes the barrier struct
 func (b *barrier) init() {
 	var wg sync.WaitGroup
 	b.wg = &wg
 	b.results = make(chan *result)
 }
 
+//adds a function to our barrier struct
 func (b *barrier) add(fn functionType) *barrier {
 	b.functions = append(b.functions, fn)
 	return b
 }
 
+//executeAndReturn returns an array of results for the user to handle. Also see execute()
 func (b *barrier) executeAndReturn(val int) []*result {
 	b.executeDefault(&val)
 	return b.wait()
 }
 
+//executeDefault is not a public function
 func (b *barrier) executeDefault(val *int) {
 	b.init()
 	for _, fn := range b.functions {
@@ -74,6 +109,9 @@ func (b *barrier) executeDefault(val *int) {
 	}
 }
 
+/*execute parses the array of results, and only returns an error
+if any one of the jobs failed. Also see executeAndReturn()
+*/
 func (b *barrier) execute(val int) (string, error) {
 	b.executeDefault(&val)
 	results := b.wait()
@@ -86,6 +124,7 @@ func (b *barrier) execute(val int) (string, error) {
 	return fmt.Sprintf("Values are correct!"), nil
 }
 
+//wait is not a public function
 func (b *barrier) wait() []*result {
 	go func(wg *sync.WaitGroup, results chan *result) {
 		wg.Wait()
@@ -99,59 +138,23 @@ func (b *barrier) wait() []*result {
 	return results
 }
 
-func job1(val int) (string, error) {
-	fmt.Println("executing job1")
-	time.Sleep(time.Second * 3)
-	if val > 10 {
-		return "success", nil
-	}
-
-	errMsg := fmt.Sprintf("too less for val in func1 : %v. It needs greater than 10 ", val)
-	return "", customErrorNew(errMsg, false)
-}
-
-func job2(val int) (string, error) {
-	fmt.Println("executing job2")
-	time.Sleep(time.Second * 2)
-	if val%2 == 0 {
-		return "success", nil
-	}
-	errMsg := fmt.Sprintf("Val not divisible by 2 in func2 : %v", val)
-	return "", customErrorNew(errMsg, true)
-}
-
-func job3() (string, error) {
-	fmt.Println("executing job3")
-	time.Sleep(time.Second * 2)
-	return "func3 always passes!", nil
-}
-
-func handleJobs(val int) {
-
-	barrier := &barrier{}
-
-	job3Wrapper := func(int) (string, error) {
-		return job3()
-	}
-
-	barrier.add(job1).add(job2).add(job3Wrapper)
-
+func main() {
 	//option1, we only care if any critical errors occured in any of the jobs
-	resp, err := barrier.execute(val)
-	if err != nil {
-		if err, ok := err.(*customError); ok {
-			if err.critical {
-				fmt.Println("CRITICAL ERROR!! ", err)
-			} else {
-				fmt.Println("ERROR!! ", err)
-			}
-		} else {
-			fmt.Println("ERROR!! >>> ", err)
-		}
-	} else {
-		//SUCCESS, all jobs passed without errors
-		fmt.Println(resp)
-	}
+	//resp, err := barrier.execute(val)
+	// if err != nil {
+	// 	if err, ok := err.(*customError); ok {
+	// 		if err.critical {
+	// 			fmt.Println("CRITICAL ERROR!! ", err)
+	// 		} else {
+	// 			fmt.Println("ERROR!! ", err)
+	// 		}
+	// 	} else {
+	// 		fmt.Println("ERROR!! >>> ", err)
+	// 	}
+	// } else {
+	// 	//SUCCESS, all jobs passed without errors
+	// 	fmt.Println(resp)
+	// }
 
 	//option2, if we need more control, we get the list of results
 	// and execute based on each result
@@ -175,12 +178,6 @@ func handleJobs(val int) {
 	// if !hasError {
 	// 	fmt.Println("Values are correct!")
 	// }
-}
-
-func main() {
-	handleJobs(4)
-	handleJobs(11)
-	handleJobs(12)
 }
 
 //TODO custom error, interface input

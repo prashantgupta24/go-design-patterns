@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -20,6 +22,7 @@ func TestSuite(t *testing.T) {
 func (suite *testCase) SetupSuite() {
 	barrier := &barrier{}
 
+	//since job3 doesn't require an input, we have to wrap it around a function
 	job3Wrapper := func(int) (string, error) {
 		return job3()
 	}
@@ -28,6 +31,32 @@ func (suite *testCase) SetupSuite() {
 	suite.barrier = barrier
 }
 
+func job1(val int) (string, error) {
+	fmt.Println("executing job1")
+	time.Sleep(time.Second * 3)
+	if val > 10 {
+		return "success", nil
+	}
+
+	errMsg := fmt.Sprintf("too less for val in func1 : %v. It needs greater than 10 ", val)
+	return "", customErrorNew(errMsg, false)
+}
+
+func job2(val int) (string, error) {
+	fmt.Println("executing job2")
+	time.Sleep(time.Second * 2)
+	if val%2 == 0 {
+		return "success", nil
+	}
+	errMsg := fmt.Sprintf("CRITICAL ERROR!! Val not divisible by 2 in func2 : %v", val)
+	return "", customErrorNew(errMsg, true)
+}
+
+func job3() (string, error) {
+	fmt.Println("executing job3")
+	time.Sleep(time.Second * 2)
+	return "func3 always passes!", nil
+}
 func (suite *testCase) TestExecute1() {
 
 	barrier := suite.barrier
