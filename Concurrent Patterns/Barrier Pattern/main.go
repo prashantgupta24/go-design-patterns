@@ -27,8 +27,8 @@ barrier := &barrier{}
 //add all jobs to barrier
 barrier.add(job1).add(job2).add(job3Wrapper)
 
-resp, err := barrier.execute()
-//handle the error as you see fit
+resp, err := barrier.execute()//wait for the jobs to execute
+//handle the error as you see fit if there was an error
 
 */
 
