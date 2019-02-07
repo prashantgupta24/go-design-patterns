@@ -28,9 +28,23 @@ barrier := &Barrier{}
 //add all jobs to barrier
 barrier.Add(job1).Add(job2).Add(job3)
 
+Option 1:
 resp, err := barrier.Execute()
-//wait for the jobs to execute
-//handle the error as you see fit if there was an error
+
+Execute() simply returns a Go or no-go, i.e. if there was an error
+in any of the jobs submitted, that error is returned.
+If all jobs passed, then error will be nil.
+
+Option 2:
+results := Barrier.executeAndReturnResults()
+
+If we want more control on each of the job's result, then
+we can use ExecuteAndReturnResults(), which returns an array
+of results for us to deal with.
+
+for _, result := range results {
+	...
+}
 
 */
 
