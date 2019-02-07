@@ -26,9 +26,10 @@ Usage:
 barrier := &Barrier{}
 
 //add all jobs to barrier
-barrier.Add(job1).Add(job2).Add(job3Wrapper)
+barrier.Add(job1).Add(job2).Add(job3)
 
-resp, err := barrier.Execute()//wait for the jobs to execute
+resp, err := barrier.Execute()
+//wait for the jobs to execute
 //handle the error as you see fit if there was an error
 
 */
