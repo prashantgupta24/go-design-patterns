@@ -10,9 +10,10 @@ import (
 Barrier pattern
 
 Its purpose is simple--put up a barrier so that nobody passes
-until we have all the results we need, something quite common in concurrent applications.
+until we have all the results we need, something quite common in
+concurrent applications.
 
-Imagine the situation where we have a microservices application
+Imagine the situation where we have a micro-services application
 where one service needs to compose its response by merging the responses
 of other microservices. This is where the Barrier pattern can help us.
 
@@ -22,15 +23,108 @@ different Goroutines (or services).
 
 Usage:
 
-barrier := &barrier{}
+barrier := &Barrier{}
 
 //add all jobs to barrier
-barrier.add(job1).add(job2).add(job3Wrapper)
+barrier.Add(job1).Add(job2).Add(job3Wrapper)
 
-resp, err := barrier.execute()//wait for the jobs to execute
+resp, err := barrier.Execute()//wait for the jobs to execute
 //handle the error as you see fit if there was an error
 
 */
+
+//Barrier struct is the main struct containing all components we need
+type Barrier struct {
+	wg        *sync.WaitGroup
+	results   chan *Result
+	functions []functionType
+}
+
+//Result is the information being passed back to the user.
+type Result struct {
+	msg string
+	err error
+}
+
+//initializes the Barrier struct, called automatically
+func (b *Barrier) init() {
+	var wg sync.WaitGroup
+	b.wg = &wg
+	b.results = make(chan *Result)
+}
+
+//all functions need to be of this type
+type functionType func(int) (string, error)
+
+//Add adds a function to our Barrier execution queue
+func (b *Barrier) Add(fn functionType) *Barrier {
+	b.functions = append(b.functions, fn)
+	return b
+}
+
+/*ExecuteAndReturnResults returns an array of results for the user
+to handle.
+
+Also see execute()
+*/
+func (b *Barrier) ExecuteAndReturnResults(val int) []*Result {
+	b.executeDefault(&val)
+	return b.wait()
+}
+
+/*Execute parses the array of results, and only returns an error
+if any one of the jobs failed.
+
+Also see executeAndReturn()
+*/
+func (b *Barrier) Execute(val int) (string, error) {
+	b.executeDefault(&val)
+	results := b.wait()
+
+	for _, result := range results {
+		if result.err != nil {
+			return "", result.err
+		}
+	}
+	return fmt.Sprintf("Values are correct!"), nil
+}
+
+//executeDefault is not a public function
+func (b *Barrier) executeDefault(val *int) {
+	b.init()
+	for _, fn := range b.functions {
+		b.wg.Add(1)
+		go func(fn functionType, b *Barrier, val *int) {
+			defer b.wg.Done()
+			resp, err := fn(*val)
+			if err != nil {
+				b.results <- &Result{
+					msg: "",
+					err: err,
+				}
+			} else {
+				b.results <- &Result{
+					msg: resp,
+					err: nil,
+				}
+			}
+		}(fn, b, val)
+	}
+}
+
+//wait is not a public function
+func (b *Barrier) wait() []*Result {
+	go func(wg *sync.WaitGroup, results chan *Result) {
+		wg.Wait()
+		close(results)
+	}(b.wg, b.results)
+
+	var results []*Result
+	for result := range b.results {
+		results = append(results, result)
+	}
+	return results
+}
 
 //CUSTOM ERROR SECTION
 
@@ -51,96 +145,9 @@ func customErrorNew(text string, critical bool) error {
 	}
 }
 
-//each result looks like this
-type result struct {
-	msg string
-	err error
-}
-
-//all functions need to be of this type
-type functionType func(int) (string, error)
-
-//main struct
-type barrier struct {
-	wg        *sync.WaitGroup
-	results   chan *result
-	functions []functionType
-}
-
-//initializes the barrier struct
-func (b *barrier) init() {
-	var wg sync.WaitGroup
-	b.wg = &wg
-	b.results = make(chan *result)
-}
-
-//adds a function to our barrier struct
-func (b *barrier) add(fn functionType) *barrier {
-	b.functions = append(b.functions, fn)
-	return b
-}
-
-//executeAndReturn returns an array of results for the user to handle. Also see execute()
-func (b *barrier) executeAndReturn(val int) []*result {
-	b.executeDefault(&val)
-	return b.wait()
-}
-
-//executeDefault is not a public function
-func (b *barrier) executeDefault(val *int) {
-	b.init()
-	for _, fn := range b.functions {
-		b.wg.Add(1)
-		go func(fn functionType, b *barrier, val *int) {
-			defer b.wg.Done()
-			resp, err := fn(*val)
-			if err != nil {
-				b.results <- &result{
-					msg: "",
-					err: err,
-				}
-			} else {
-				b.results <- &result{
-					msg: resp,
-					err: nil,
-				}
-			}
-		}(fn, b, val)
-	}
-}
-
-/*execute parses the array of results, and only returns an error
-if any one of the jobs failed. Also see executeAndReturn()
-*/
-func (b *barrier) execute(val int) (string, error) {
-	b.executeDefault(&val)
-	results := b.wait()
-
-	for _, result := range results {
-		if result.err != nil {
-			return "", result.err
-		}
-	}
-	return fmt.Sprintf("Values are correct!"), nil
-}
-
-//wait is not a public function
-func (b *barrier) wait() []*result {
-	go func(wg *sync.WaitGroup, results chan *result) {
-		wg.Wait()
-		close(results)
-	}(b.wg, b.results)
-
-	var results []*result
-	for result := range b.results {
-		results = append(results, result)
-	}
-	return results
-}
-
 func main() {
 	//option1, we only care if any critical errors occured in any of the jobs
-	//resp, err := barrier.execute(val)
+	//resp, err := Barrier.execute(val)
 	// if err != nil {
 	// 	if err, ok := err.(*customError); ok {
 	// 		if err.critical {
@@ -158,7 +165,7 @@ func main() {
 
 	//option2, if we need more control, we get the list of results
 	// and execute based on each result
-	// results := barrier.executeAndReturn(val)
+	// results := Barrier.executeAndReturn(val)
 
 	// hasError := false
 	// for _, result := range results {

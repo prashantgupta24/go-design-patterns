@@ -11,7 +11,7 @@ import (
 
 type testCase struct {
 	suite.Suite
-	barrier *barrier
+	barrier *Barrier
 }
 
 func TestSuite(t *testing.T) {
@@ -20,15 +20,15 @@ func TestSuite(t *testing.T) {
 
 //Run once before all tests
 func (suite *testCase) SetupSuite() {
-	barrier := &barrier{}
+	Barrier := &Barrier{}
 
 	//since job3 doesn't require an input, we have to wrap it around a function
 	job3Wrapper := func(int) (string, error) {
 		return job3()
 	}
 
-	barrier.add(job1).add(job2).add(job3Wrapper)
-	suite.barrier = barrier
+	Barrier.Add(job1).Add(job2).Add(job3Wrapper)
+	suite.barrier = Barrier
 }
 
 func (suite *testCase) TestExecute1() {
@@ -36,7 +36,7 @@ func (suite *testCase) TestExecute1() {
 	barrier := suite.barrier
 	t := suite.T()
 
-	_, err := barrier.execute(11)
+	_, err := barrier.Execute(11)
 
 	assert.NotNil(t, err, "Error should not be nil. ")
 	assert.IsType(t, err, &customError{}, "Should be of custom error type")
@@ -50,7 +50,7 @@ func (suite *testCase) TestExecute2() {
 	barrier := suite.barrier
 	t := suite.T()
 
-	_, err := barrier.execute(2)
+	_, err := barrier.Execute(2)
 
 	assert.NotNil(t, err, "Error should not be nil. ")
 	assert.IsType(t, err, &customError{}, "Should be of custom error type")
@@ -64,7 +64,7 @@ func (suite *testCase) TestExecute3() {
 	barrier := suite.barrier
 	t := suite.T()
 
-	_, err := barrier.execute(12)
+	_, err := barrier.Execute(12)
 
 	assert.Nil(t, err, "Error should be nil. ", err)
 }
