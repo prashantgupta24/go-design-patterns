@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	sleepTime        = 5
-	numLoops         = 100
-	randomValueLimit = 100
+	sleepTime        = 2
+	numLoops         = 1
+	randomValueLimit = 10
 )
 
 type testCase struct {
@@ -30,40 +30,59 @@ func (suite *testCase) TestFuture1() {
 	var successes int
 	var failures int
 
+	successCh := make(chan int)
+	failureCh := make(chan int)
+	resultCh := make(chan int)
+
+	go func() {
+		for {
+			select {
+			case <-successCh:
+				successes++
+			case <-failureCh:
+				failures++
+			case <-resultCh:
+				resultCh <- successes + failures
+				return
+			}
+		}
+	}()
+
 	for i := 0; i < numLoops; i++ {
 		val := rand.Intn(randomValueLimit)
 
-		NewFuture().success(func(str string) {
+		NewFuture().Success(func(str string) {
 			fmt.Println("func1 was successful")
-			successes++
-		}).fail(func(err error) {
+			successCh <- 1
+		}).Fail(func(err error) {
 			fmt.Printf("error returned from func1 %v\n", err)
-			failures++
-		}).execute(funcToExecute1, val)
+			failureCh <- 1
+		}).Execute(funcToExecute1, val)
 
-		NewFuture().success(func(str string) {
+		NewFuture().Success(func(str string) {
 			fmt.Println("func2 was successful")
-			successes++
-		}).fail(func(err error) {
+			successCh <- 1
+		}).Fail(func(err error) {
 			fmt.Printf("error returned from func2 %v\n", err)
-			failures++
-		}).execute(funcToExecute2, val)
+			failureCh <- 1
+		}).Execute(funcToExecute2, val)
 
 		func3Wrap := func(int) (string, error) {
 			return funcToExecute3()
 		}
-		NewFuture().success(func(str string) {
+		NewFuture().Success(func(str string) {
 			fmt.Println("func3 was successful")
-			successes++
-		}).fail(func(err error) {
+			successCh <- 1
+		}).Fail(func(err error) {
 			fmt.Printf("error returned from func3 %v\n", err)
-			failures++
-		}).execute(func3Wrap, val)
+			failureCh <- 1
+		}).Execute(func3Wrap, val)
 	}
 
-	time.Sleep(time.Second * time.Duration(sleepTime))
+	time.Sleep(time.Second * time.Duration(sleepTime+1))
 
-	totalOutcomes := successes + failures
+	resultCh <- 1 //activate result channel to send us the result
+	totalOutcomes := <-resultCh
 	assert.Equal(t, numLoops*3, totalOutcomes, "success and failures should be %v, instead it is %v", numLoops*3, totalOutcomes)
 }
 
