@@ -25,14 +25,12 @@ func TestSuite(t *testing.T) {
 
 //Run once before all tests
 func (suite *testCase) SetupSuite() {
-	barrier := &Barrier{}
-
 	//since job3 doesn't require an input, we have to wrap it around a function
 	job3Wrapper := func(int) (func() interface{}, error) {
 		return job3()
 	}
 
-	barrier.Add(job1).Add(job2).Add(job3Wrapper)
+	barrier := NewBarrier().Add(job1).Add(job2).Add(job3Wrapper)
 	suite.barrier = barrier
 }
 
@@ -75,34 +73,40 @@ func (suite *testCase) TestExecute3() {
 }
 
 func (suite *testCaseCustom) TestCustom() {
-	barrier := &Barrier{}
-	//t := suite.T()
-	barrier.Add(customJob1).Add(customJob2).Add(customJob3)
+	t := suite.T()
 
-	results := barrier.ExecuteAndReturnResults(12)
+	barrier := NewBarrier().AddN("customJob1", customJob1).
+		AddN("customJob2", customJob2).AddN("customJob3", customJob3)
 
-	//hasError := false
-	for _, result := range results {
-		if result.err != nil {
-			//hasError = true
-			if err, ok := result.err.(*customError); ok {
-				if err.critical {
-					fmt.Println("CRITICAL ERROR!! ", err)
-				} else {
-					fmt.Println("ERROR!! ", err)
-				}
+	input := 12
+	results, err := barrier.Execute(input)
+	assert.Nil(t, err, "err should be nil")
+
+	if err != nil {
+		if err, ok := err.(*customError); ok {
+			if err.critical {
+				fmt.Println("CRITICAL ERROR!! ", err)
 			} else {
-				fmt.Println("ERROR!! >>> ", result.err)
+				fmt.Println("ERROR!! ", err)
 			}
 		} else {
-			resp := result.response()
-			switch valType := resp.(type) {
-			case int:
-				fmt.Println("function returned int : ", valType)
-			case bool:
-				fmt.Println("function returned bool : ", valType)
-			}
+			fmt.Println("ERROR!! >>> ", err)
 		}
+	} else {
+		resultForCustomJob1 := results["customJob1"]
+		resp1 := resultForCustomJob1.funcResponse()
+		fmt.Println("customJob1 returned : ", resp1)
+		assert.Equal(t, input*10, resp1, "custom job 1 did not match")
+
+		resultForCustomJob2 := results["customJob2"]
+		resp2 := resultForCustomJob2.funcResponse()
+		fmt.Println("customJob2 returned : ", resp2)
+		assert.Equal(t, input%2 == 0, resp2, "custom job 2 did not match")
+
+		resultForCustomJob3 := results["customJob3"]
+		resp3 := resultForCustomJob3.funcResponse()
+		fmt.Println("customJob3 returned : ", resp3)
+		assert.Equal(t, input%2 != 0, resp3, "custom job 3 did not match")
 	}
 }
 

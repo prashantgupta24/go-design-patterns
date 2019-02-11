@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"sync"
-	"time"
 )
 
 /*
@@ -24,17 +22,23 @@ different Goroutines (or services).
 
 Usage:
 
-barrier := &Barrier{}
-
-//add all jobs to barrier
-barrier.Add(job1).Add(job2).Add(job3)
+//add all jobs to a new instance of barrier
+barrier := NewBarrier().AddN("job1", job1).
+	AddN("job2", job2).AddN("job3", job3)
 
 Option 1:
-resp, err := barrier.Execute()
+results, err := barrier.Execute()
 
-Execute() simply returns a Go or no-go, i.e. if there was an error
+Execute() returns a Go or no-go, i.e. if there was an error
 in any of the jobs submitted, that error is returned.
-If all jobs passed, then error will be nil.
+If all jobs passed, then all the results are returned
+as a map of the job name and their corresponding result.
+
+We can just fetch the result of a function by querying the
+response map returned:
+
+//Result of Job 1 (assuming all jobs passed)
+job1Output := results["job1"]
 
 Option 2:
 results := Barrier.executeAndReturnResults()
@@ -52,21 +56,30 @@ for _, result := range results {
 //Barrier struct is the main struct containing all components we need
 type Barrier struct {
 	wg        *sync.WaitGroup
-	results   chan *Result
-	functions []functionType
+	resultsCh chan *Result
+	functions map[string]functionType
+}
+
+//NewBarrier creates a new Barrier
+func NewBarrier() *Barrier {
+	b := &Barrier{}
+	b.init()
+	return b
 }
 
 //Result is the information being passed back to the user.
 type Result struct {
-	response func() interface{}
-	err      error
+	funcName     string
+	funcResponse func() interface{}
+	err          error
 }
 
 //initializes the Barrier struct, called automatically
 func (b *Barrier) init() {
 	var wg sync.WaitGroup
 	b.wg = &wg
-	b.results = make(chan *Result)
+	b.resultsCh = make(chan *Result)
+	b.functions = make(map[string]functionType)
 }
 
 //all functions need to be of this type
@@ -74,70 +87,81 @@ type functionType func(int) (func() interface{}, error)
 
 //Add adds a function to our Barrier execution queue
 func (b *Barrier) Add(fn functionType) *Barrier {
-	b.functions = append(b.functions, fn)
+	//b.functions = append(b.functions, fn)
+	return b.AddN("default", fn)
+}
+
+/*AddN adds a function to our Barrier execution queue,
+along with a name to the function. This can be used to fetch
+the corresponding result of the function
+*/
+func (b *Barrier) AddN(functionName string, fn functionType) *Barrier {
+	b.functions[functionName] = fn
 	return b
 }
 
 /*ExecuteAndReturnResults returns an array of results for the user
-to handle.
+to handle. Needed if the returned errors need to be handled
+separately
 
 Also see execute()
 */
-func (b *Barrier) ExecuteAndReturnResults(val int) []*Result {
+func (b *Barrier) ExecuteAndReturnResults(val int) map[string]*Result {
 	b.executeDefault(&val)
 	return b.wait()
 }
 
-/*Execute parses the array of results, and only returns an error
-if any one of the jobs failed.
+/*Execute parses the array of results, and returns all results if no error,
+else an error if any one of the jobs failed.
 
 Also see executeAndReturn()
 */
-func (b *Barrier) Execute(val int) (string, error) {
+func (b *Barrier) Execute(val int) (map[string]*Result, error) {
 	b.executeDefault(&val)
 	results := b.wait()
 
 	for _, result := range results {
 		if result.err != nil {
-			return "", result.err
+			return nil, result.err
 		}
 	}
-	return fmt.Sprintf("Values are correct!"), nil
+	return results, nil
 }
 
 //executeDefault is not a public function
 func (b *Barrier) executeDefault(val *int) {
-	b.init()
-	for _, fn := range b.functions {
+	for name, fn := range b.functions {
 		b.wg.Add(1)
-		go func(fn functionType, b *Barrier, val *int) {
+		go func(fn functionType, name string, b *Barrier, val *int) {
 			defer b.wg.Done()
 			resp, err := fn(*val)
 			if err != nil {
-				b.results <- &Result{
-					response: nil,
-					err:      err,
+				b.resultsCh <- &Result{
+					funcName:     name,
+					funcResponse: nil,
+					err:          err,
 				}
 			} else {
-				b.results <- &Result{
-					response: resp,
-					err:      nil,
+				b.resultsCh <- &Result{
+					funcName:     name,
+					funcResponse: resp,
+					err:          nil,
 				}
 			}
-		}(fn, b, val)
+		}(fn, name, b, val)
 	}
 }
 
 //wait is not a public function
-func (b *Barrier) wait() []*Result {
+func (b *Barrier) wait() map[string]*Result {
 	go func(wg *sync.WaitGroup, results chan *Result) {
 		wg.Wait()
 		close(results)
-	}(b.wg, b.results)
+	}(b.wg, b.resultsCh)
 
-	var results []*Result
-	for result := range b.results {
-		results = append(results, result)
+	results := make(map[string]*Result)
+	for result := range b.resultsCh {
+		results[result.funcName] = result
 	}
 	return results
 }
@@ -159,20 +183,6 @@ func customErrorNew(text string, critical bool) error {
 		err:      text,
 		critical: critical,
 	}
-}
-
-func job12(val int) (func() interface{}, error) {
-	fmt.Println("executing job12")
-	time.Sleep(time.Second * 3)
-	localVal := 10
-	if val > 10 {
-		return func() interface{} {
-			return localVal
-		}, nil
-	}
-
-	errMsg := fmt.Sprintf("too less for val in func1 : %v. It needs greater than 10 ", val)
-	return nil, customErrorNew(errMsg, false)
 }
 
 func main() {
