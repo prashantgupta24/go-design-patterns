@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 /*
@@ -57,8 +58,8 @@ type Barrier struct {
 
 //Result is the information being passed back to the user.
 type Result struct {
-	msg string
-	err error
+	response func() interface{}
+	err      error
 }
 
 //initializes the Barrier struct, called automatically
@@ -69,7 +70,7 @@ func (b *Barrier) init() {
 }
 
 //all functions need to be of this type
-type functionType func(int) (string, error)
+type functionType func(int) (func() interface{}, error)
 
 //Add adds a function to our Barrier execution queue
 func (b *Barrier) Add(fn functionType) *Barrier {
@@ -114,13 +115,13 @@ func (b *Barrier) executeDefault(val *int) {
 			resp, err := fn(*val)
 			if err != nil {
 				b.results <- &Result{
-					msg: "",
-					err: err,
+					response: nil,
+					err:      err,
 				}
 			} else {
 				b.results <- &Result{
-					msg: resp,
-					err: nil,
+					response: resp,
+					err:      nil,
 				}
 			}
 		}(fn, b, val)
@@ -160,9 +161,25 @@ func customErrorNew(text string, critical bool) error {
 	}
 }
 
+func job12(val int) (func() interface{}, error) {
+	fmt.Println("executing job12")
+	time.Sleep(time.Second * 3)
+	localVal := 10
+	if val > 10 {
+		return func() interface{} {
+			return localVal
+		}, nil
+	}
+
+	errMsg := fmt.Sprintf("too less for val in func1 : %v. It needs greater than 10 ", val)
+	return nil, customErrorNew(errMsg, false)
+}
+
 func main() {
 	//option1, we only care if any critical errors occured in any of the jobs
-	//resp, err := Barrier.execute(val)
+	// Barrier := &Barrier{}
+	// Barrier.Add(job)
+	// resp, err := Barrier.Execute(21)
 	// if err != nil {
 	// 	if err, ok := err.(*customError); ok {
 	// 		if err.critical {
@@ -180,7 +197,9 @@ func main() {
 
 	//option2, if we need more control, we get the list of results
 	// and execute based on each result
-	// results := Barrier.executeAndReturn(val)
+	// Barrier := &Barrier{}
+	// Barrier.Add(job12)
+	// results := Barrier.ExecuteAndReturnResults(12)
 
 	// hasError := false
 	// for _, result := range results {
@@ -194,6 +213,14 @@ func main() {
 	// 			}
 	// 		} else {
 	// 			fmt.Println("ERROR!! >>> ", result.err)
+	// 		}
+	// 	} else {
+	// 		resp := result.response()
+	// 		switch valType := resp.(type) {
+	// 		case int:
+	// 			fmt.Println("function returned int : ", valType)
+	// 		case bool:
+	// 			fmt.Println("function returned bool : ", valType)
 	// 		}
 	// 	}
 	// }
