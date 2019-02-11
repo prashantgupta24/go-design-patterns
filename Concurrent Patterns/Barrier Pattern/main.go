@@ -87,7 +87,6 @@ type functionType func(int) (func() interface{}, error)
 
 //Add adds a function to our Barrier execution queue
 func (b *Barrier) Add(fn functionType) *Barrier {
-	//b.functions = append(b.functions, fn)
 	return b.AddN("default", fn)
 }
 
