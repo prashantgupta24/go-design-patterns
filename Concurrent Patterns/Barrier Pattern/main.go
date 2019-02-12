@@ -2,6 +2,8 @@ package main
 
 import (
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 /*
@@ -85,22 +87,37 @@ func (b *Barrier) init() {
 //all functions need to be of this type
 type functionType func(int) (func() interface{}, error)
 
-//Add adds a function to our Barrier execution queue
+/*Add adds a function to our Barrier execution queue.
+Only use this if you don't care about fetching the response for
+this job later on, and only care about error.
+*/
 func (b *Barrier) Add(fn functionType) *Barrier {
-	return b.AddN("default", fn)
+	uuid := uuid.Must(uuid.NewRandom())
+	return b.AddN(uuid.String(), fn)
 }
 
 /*AddN adds a function to our Barrier execution queue,
 along with a name to the function. This can be used to fetch
-the corresponding result of the function
+the corresponding result of the function later on.
 */
 func (b *Barrier) AddN(functionName string, fn functionType) *Barrier {
 	b.functions[functionName] = fn
 	return b
 }
 
-/*ExecuteAndReturnResults returns an array of results for the user
-to handle. Needed if the returned errors need to be handled
+/*AddWNameReturned adds a function to our Barrier execution queue,
+and passes a unique name back to the user. This can be used to fetch
+the corresponding result of the function later on.
+*/
+func (b *Barrier) AddWNameReturned(fn functionType) string {
+	uuid := uuid.Must(uuid.NewRandom())
+	uuidString := uuid.String()
+	b.functions[uuidString] = fn
+	return uuidString
+}
+
+/*ExecuteAndReturnResults returns a map of job names to results
+for the user to handle. Needed if the returned errors need to be handled
 separately
 
 Also see execute()
@@ -110,8 +127,8 @@ func (b *Barrier) ExecuteAndReturnResults(val int) map[string]*Result {
 	return b.wait()
 }
 
-/*Execute parses the array of results, and returns all results if no error,
-else an error if any one of the jobs failed.
+/*Execute parses the array of results, and if no error, returns
+a map of job names to results, else an error if any one of the jobs failed.
 
 Also see executeAndReturn()
 */
