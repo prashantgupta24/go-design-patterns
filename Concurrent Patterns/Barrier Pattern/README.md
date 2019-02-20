@@ -8,29 +8,30 @@ Add concurrent jobs to a new barrier instance
 
 ### There are 3 ways to add jobs to a new barrier instance:
 
-#### Add(fn functionType)
+##### Add(fn functionType)
 
 Add adds a function to our Barrier execution queue.Only use this if you don't care about fetching the response for this job later on, and only care about error.
 
     barrier := NewBarrier().Add(job1).Add(job2).Add(job3)
     
-#### AddN(functionName string, fn functionType)
+##### AddN(functionName string, fn functionType)
 
 AddN adds a function to our Barrier execution queue, along with a name to the function. This can be used to fetch the corresponding result of the function later on.
 
     barrier := NewBarrier().AddN("job1", job1).AddN("job2", job2).AddN("job3", job3)
     
-#### AddWNameReturned(fn functionType)
+##### AddWNameReturned(fn functionType)
 AddWNameReturned adds a function to our Barrier execution queue, and passes a unique name back to the user. This can be used to fetch the corresponding result of the function later on.
 
     barrier := NewBarrier()
+    
     job1 := barrier.AddWNameReturned(job1)
     job2 := barrier.AddWNameReturned(job2)
     job3 := barrier.AddWNameReturned(job3)
     
 ### Execution of jobs
 
-#### Option 1:
+##### Option 1:
 
     results, err := barrier.Execute()
     
@@ -40,7 +41,7 @@ We can just fetch the result of a function by querying the response map returned
     //Result of Job 1 (assuming all jobs passed)
     job1Output := results["job1"]
 
-#### Option 2:
+##### Option 2:
 
     results := Barrier.executeAndReturnResults()
 If we want more control on each of the job's result, then we can use ExecuteAndReturnResults(), which returns an array of results for us to deal with.
